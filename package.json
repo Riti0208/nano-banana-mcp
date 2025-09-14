@@ -1,0 +1,49 @@
+{
+  "name": "nano-banana-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for Gemini 2.5 Flash Image Preview (nano-banana) image generation",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "mcp",
+    "gemini",
+    "nano-banana",
+    "image-generation",
+    "ai",
+    "model-context-protocol",
+    "claude",
+    "image-editing",
+    "image-analysis"
+  ],
+  "author": "nano-banana-mcp contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Riti0208/nano-banana-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Riti0208/nano-banana-mcp/issues"
+  },
+  "homepage": "https://github.com/Riti0208/nano-banana-mcp#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@google/generative-ai": "^0.21.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "@types/node": "^20.10.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "bin": {
+    "nano-banana-mcp": "dist/index.js"
+  }
+}
