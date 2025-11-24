@@ -4,7 +4,7 @@
 [![MCP](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 
-GoogleのGemini 2.5 Flash Image Previewモデル（通称「nano-banana」）を使用した、高度な画像生成・編集・分析のためのModel Context Protocol (MCP)サーバーです。
+GoogleのGemini 2.5 Flash Image Preview（通称「nano-banana」）およびGemini 3 Pro Image Preview（通称「nano-banana pro」）モデルを使用した、高度な画像生成・編集・分析のためのModel Context Protocol (MCP)サーバーです。
 
 [English](README.md) | **日本語**
 
@@ -21,11 +21,23 @@ GoogleのGemini 2.5 Flash Image Previewモデル（通称「nano-banana」）を
 - 🔬 **画像比較** - 画像間の違いを比較・分析
 
 ### 高度な機能
+- **デュアルモデル対応** - Gemini 2.5 Flash Image PreviewまたはGemini 3 Pro Image Previewを選択可能
+- **高解像度出力** - Gemini 3 Proで最大4K（4096x4096）の画像生成
 - **生成制御** - temperature、topP、topKパラメータで微調整
 - **並列処理** - オプションの並列実行でバッチ操作
 - **スマートテンプレート** - 10種類以上のプロフェッショナルスタイルプリセット
 - **柔軟な入力** - ファイルパスとbase64エンコード画像の両方に対応
 - **自動保存** - タイムスタンプ付きで生成画像を自動保存
+
+### モデル比較
+
+| 機能 | Gemini 2.5 Flash Image | Gemini 3 Pro Image |
+|------|------------------------|-------------------|
+| 最大解像度 | 1K (1024px) | 1K / 2K / 4K |
+| テキスト描画 | 良好 | 優秀 |
+| 速度 | 高速 | 中速 |
+| 品質 | 高品質 | プレミアム |
+| 最適用途 | 高速イテレーション | 最終制作物 |
 
 ## 🚀 クイックスタート
 

@@ -12,6 +12,13 @@ import { z } from "zod";
 import * as fs from "fs/promises";
 import * as path from "path";
 
+// Model selection enum
+const ModelType = z.enum(["gemini-2.5-flash-image-preview", "gemini-3-pro-image-preview"]).default("gemini-2.5-flash-image-preview");
+
+// Resolution options (only for gemini-3-pro-image-preview)
+// Note: Must use uppercase K (1K, 2K, 4K) as per Gemini API requirements
+const ResolutionType = z.enum(["1K", "2K", "4K"]).optional();
+
 // Common generation config schema
 const GenerationConfigSchema = z.object({
   temperature: z.number().min(0).max(2).optional().describe("Controls randomness (0.0-2.0, default: 1.0)"),
@@ -23,6 +30,8 @@ const GenerationConfigSchema = z.object({
 const GenerateImageArgsSchema = z.object({
   prompt: z.string().describe("The text prompt describing the image to generate"),
   outputDir: z.string().optional().describe("Directory to save the generated image (optional)"),
+  model: ModelType.describe("Model to use: gemini-2.5-flash-image-preview (default) or gemini-3-pro-image-preview"),
+  resolution: ResolutionType.describe("Resolution (only for gemini-3-pro-image-preview): 1K, 2K, or 4K"),
   config: GenerationConfigSchema.optional().describe("Advanced generation configuration"),
 });
 
@@ -31,6 +40,8 @@ const EditImageArgsSchema = z.object({
   imageData: z.string().optional().describe("Base64 encoded image data to edit"),
   imagePath: z.string().optional().describe("Path to the image file to edit"),
   outputDir: z.string().optional().describe("Directory to save the edited image (optional)"),
+  model: ModelType.describe("Model to use: gemini-2.5-flash-image-preview (default) or gemini-3-pro-image-preview"),
+  resolution: ResolutionType.describe("Resolution (only for gemini-3-pro-image-preview): 1K, 2K, or 4K"),
   config: GenerationConfigSchema.optional().describe("Advanced generation configuration"),
 }).refine(data => data.imageData || data.imagePath, {
   message: "Either imageData or imagePath must be provided",
@@ -53,6 +64,8 @@ const MultiImageEditArgsSchema = z.object({
     description: z.string().optional().describe("Optional description of this image's role"),
   })).min(1).describe("Array of images to process"),
   outputDir: z.string().optional().describe("Directory to save the result (optional)"),
+  model: ModelType.describe("Model to use: gemini-2.5-flash-image-preview (default) or gemini-3-pro-image-preview"),
+  resolution: ResolutionType.describe("Resolution (only for gemini-3-pro-image-preview): 1K, 2K, or 4K"),
   config: GenerationConfigSchema.optional().describe("Advanced generation configuration"),
 }).refine(data => data.images.every(img => img.imageData || img.imagePath), {
   message: "Each image must have either imageData or imagePath",
@@ -62,6 +75,8 @@ const MultiImageEditArgsSchema = z.object({
 const BatchGenerateArgsSchema = z.object({
   prompts: z.array(z.string()).min(1).describe("Array of prompts to generate images for"),
   outputDir: z.string().optional().describe("Directory to save the generated images"),
+  model: ModelType.describe("Model to use: gemini-2.5-flash-image-preview (default) or gemini-3-pro-image-preview"),
+  resolution: ResolutionType.describe("Resolution (only for gemini-3-pro-image-preview): 1K, 2K, or 4K"),
   config: GenerationConfigSchema.optional().describe("Advanced generation configuration"),
   parallel: z.boolean().optional().describe("Process prompts in parallel (default: false)"),
 });
@@ -80,6 +95,8 @@ const GenerateVariationsArgsSchema = z.object({
   count: z.number().min(1).max(5).default(3).describe("Number of variations to generate (1-5)"),
   variationStrength: z.enum(["subtle", "moderate", "strong"]).default("moderate").describe("How different the variations should be"),
   outputDir: z.string().optional().describe("Directory to save the variations"),
+  model: ModelType.describe("Model to use: gemini-2.5-flash-image-preview (default) or gemini-3-pro-image-preview"),
+  resolution: ResolutionType.describe("Resolution (only for gemini-3-pro-image-preview): 1K, 2K, or 4K"),
   config: GenerationConfigSchema.optional().describe("Advanced generation configuration"),
 }).refine(data => data.imageData || data.imagePath, {
   message: "Either imageData or imagePath must be provided",
@@ -101,6 +118,8 @@ const PromptTemplateArgsSchema = z.object({
   ]).describe("Pre-defined prompt template"),
   customization: z.string().describe("Your specific requirements to customize the template"),
   outputDir: z.string().optional().describe("Directory to save the generated image"),
+  model: ModelType.describe("Model to use: gemini-2.5-flash-image-preview (default) or gemini-3-pro-image-preview"),
+  resolution: ResolutionType.describe("Resolution (only for gemini-3-pro-image-preview): 1K, 2K, or 4K"),
   config: GenerationConfigSchema.optional().describe("Advanced generation configuration"),
 });
 
@@ -150,7 +169,7 @@ class NanaBananaMCPServer {
         tools: [
           {
             name: "generate_image",
-            description: "Generate an image using Gemini 2.5 Flash Image Preview (nano-banana)",
+            description: "Generate an image using Gemini 2.5 Flash Image Preview or Gemini 3 Pro Image Preview (nano-banana pro)",
             inputSchema: {
               type: "object",
               properties: {
@@ -162,13 +181,23 @@ class NanaBananaMCPServer {
                   type: "string",
                   description: "Directory to save the generated image (optional, defaults to current directory)",
                 },
+                model: {
+                  type: "string",
+                  enum: ["gemini-2.5-flash-image-preview", "gemini-3-pro-image-preview"],
+                  description: "Model to use (default: gemini-2.5-flash-image-preview). Use gemini-3-pro-image-preview for higher quality and resolution",
+                },
+                resolution: {
+                  type: "string",
+                  enum: ["1K", "2K", "4K"],
+                  description: "Output resolution (only for gemini-3-pro-image-preview): 1K (default), 2K, or 4K",
+                },
               },
               required: ["prompt"],
             },
           },
           {
             name: "edit_image",
-            description: "Edit an existing image using Gemini 2.5 Flash Image Preview",
+            description: "Edit an existing image using Gemini 2.5 Flash Image Preview or Gemini 3 Pro Image Preview",
             inputSchema: {
               type: "object",
               properties: {
@@ -187,6 +216,16 @@ class NanaBananaMCPServer {
                 outputDir: {
                   type: "string",
                   description: "Directory to save the edited image (optional, defaults to current directory)",
+                },
+                model: {
+                  type: "string",
+                  enum: ["gemini-2.5-flash-image-preview", "gemini-3-pro-image-preview"],
+                  description: "Model to use (default: gemini-2.5-flash-image-preview)",
+                },
+                resolution: {
+                  type: "string",
+                  enum: ["1K", "2K", "4K"],
+                  description: "Output resolution (only for gemini-3-pro-image-preview)",
                 },
               },
               required: ["prompt"],
@@ -216,7 +255,7 @@ class NanaBananaMCPServer {
           },
           {
             name: "multi_image_edit",
-            description: "Edit or combine multiple images using Gemini 2.5 Flash Image Preview (e.g., transfer pose, style, combine elements)",
+            description: "Edit or combine multiple images using Gemini 2.5 Flash Image Preview or Gemini 3 Pro Image Preview (e.g., transfer pose, style, combine elements)",
             inputSchema: {
               type: "object",
               properties: {
@@ -250,6 +289,16 @@ class NanaBananaMCPServer {
                   type: "string",
                   description: "Directory to save the result (optional, defaults to current directory)",
                 },
+                model: {
+                  type: "string",
+                  enum: ["gemini-2.5-flash-image-preview", "gemini-3-pro-image-preview"],
+                  description: "Model to use (default: gemini-2.5-flash-image-preview)",
+                },
+                resolution: {
+                  type: "string",
+                  enum: ["1K", "2K", "4K"],
+                  description: "Output resolution (only for gemini-3-pro-image-preview)",
+                },
               },
               required: ["prompt", "images"],
             },
@@ -269,6 +318,16 @@ class NanaBananaMCPServer {
                 outputDir: {
                   type: "string",
                   description: "Directory to save the generated images",
+                },
+                model: {
+                  type: "string",
+                  enum: ["gemini-2.5-flash-image-preview", "gemini-3-pro-image-preview"],
+                  description: "Model to use (default: gemini-2.5-flash-image-preview)",
+                },
+                resolution: {
+                  type: "string",
+                  enum: ["1K", "2K", "4K"],
+                  description: "Output resolution (only for gemini-3-pro-image-preview)",
                 },
                 config: {
                   type: "object",
@@ -313,6 +372,16 @@ class NanaBananaMCPServer {
                   type: "string",
                   description: "Directory to save the variations",
                 },
+                model: {
+                  type: "string",
+                  enum: ["gemini-2.5-flash-image-preview", "gemini-3-pro-image-preview"],
+                  description: "Model to use (default: gemini-2.5-flash-image-preview)",
+                },
+                resolution: {
+                  type: "string",
+                  enum: ["1K", "2K", "4K"],
+                  description: "Output resolution (only for gemini-3-pro-image-preview)",
+                },
                 config: {
                   type: "object",
                   description: "Advanced generation configuration",
@@ -339,6 +408,16 @@ class NanaBananaMCPServer {
                 outputDir: {
                   type: "string",
                   description: "Directory to save the generated image",
+                },
+                model: {
+                  type: "string",
+                  enum: ["gemini-2.5-flash-image-preview", "gemini-3-pro-image-preview"],
+                  description: "Model to use (default: gemini-2.5-flash-image-preview)",
+                },
+                resolution: {
+                  type: "string",
+                  enum: ["1K", "2K", "4K"],
+                  description: "Output resolution (only for gemini-3-pro-image-preview)",
                 },
                 config: {
                   type: "object",
@@ -416,14 +495,14 @@ class NanaBananaMCPServer {
   }
 
   private async handleGenerateImage(args: unknown) {
-    const { prompt, outputDir = ".", config } = GenerateImageArgsSchema.parse(args);
+    const { prompt, outputDir = ".", model: modelName = "gemini-2.5-flash-image-preview", resolution, config } = GenerateImageArgsSchema.parse(args);
 
-    const model = this.genAI.getGenerativeModel({ 
-      model: "gemini-2.5-flash-image-preview" 
+    const model = this.genAI.getGenerativeModel({
+      model: modelName
     });
 
-    // Build generation config
-    const generationConfig = config ? {
+    // Build generation config with resolution if specified
+    const generationConfig: any = config ? {
       temperature: config.temperature,
       topP: config.topP,
       topK: config.topK,
@@ -432,6 +511,11 @@ class NanaBananaMCPServer {
     } : {
       responseModalities: ["TEXT", "IMAGE"],
     };
+
+    // Add resolution for Pro model
+    if (resolution && modelName === "gemini-3-pro-image-preview") {
+      generationConfig.imageConfig = { imageSize: resolution };
+    }
 
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -482,10 +566,10 @@ class NanaBananaMCPServer {
   }
 
   private async handleEditImage(args: unknown) {
-    const { prompt, imageData, imagePath, outputDir = ".", config } = EditImageArgsSchema.parse(args);
+    const { prompt, imageData, imagePath, outputDir = ".", model: modelName = "gemini-2.5-flash-image-preview", resolution, config } = EditImageArgsSchema.parse(args);
 
-    const model = this.genAI.getGenerativeModel({ 
-      model: "gemini-2.5-flash-image-preview" 
+    const model = this.genAI.getGenerativeModel({
+      model: modelName
     });
 
     let finalImageData: string;
@@ -498,7 +582,7 @@ class NanaBananaMCPServer {
       // Read the image file and convert to base64
       const imageBuffer = await fs.readFile(imagePath);
       finalImageData = imageBuffer.toString('base64');
-      
+
       // Determine MIME type from file extension
       const ext = path.extname(imagePath).toLowerCase();
       switch (ext) {
@@ -530,8 +614,8 @@ class NanaBananaMCPServer {
       },
     };
 
-    // Build generation config
-    const generationConfig = config ? {
+    // Build generation config with resolution if specified
+    const generationConfig: any = config ? {
       temperature: config.temperature,
       topP: config.topP,
       topK: config.topK,
@@ -540,6 +624,11 @@ class NanaBananaMCPServer {
     } : {
       responseModalities: ["TEXT", "IMAGE"],
     };
+
+    // Add resolution for Pro model
+    if (resolution && modelName === "gemini-3-pro-image-preview") {
+      generationConfig.imageConfig = { imageSize: resolution };
+    }
 
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: prompt }, imagePart] }],
@@ -666,10 +755,10 @@ class NanaBananaMCPServer {
   }
 
   private async handleMultiImageEdit(args: unknown) {
-    const { prompt, images, outputDir = ".", config } = MultiImageEditArgsSchema.parse(args);
+    const { prompt, images, outputDir = ".", model: modelName = "gemini-2.5-flash-image-preview", resolution, config } = MultiImageEditArgsSchema.parse(args);
 
-    const model = this.genAI.getGenerativeModel({ 
-      model: "gemini-2.5-flash-image-preview" 
+    const model = this.genAI.getGenerativeModel({
+      model: modelName
     });
 
     // Process all images and create image parts
@@ -718,8 +807,8 @@ class NanaBananaMCPServer {
       });
     }
 
-    // Build generation config
-    const generationConfig = config ? {
+    // Build generation config with resolution if specified
+    const generationConfig: any = config ? {
       temperature: config.temperature,
       topP: config.topP,
       topK: config.topK,
@@ -728,6 +817,11 @@ class NanaBananaMCPServer {
     } : {
       responseModalities: ["TEXT", "IMAGE"],
     };
+
+    // Add resolution for Pro model
+    if (resolution && modelName === "gemini-3-pro-image-preview") {
+      generationConfig.imageConfig = { imageSize: resolution };
+    }
 
     // Build the content array with prompt and all images
     const result = await model.generateContent({
@@ -779,13 +873,13 @@ class NanaBananaMCPServer {
   }
 
   private async handleBatchGenerate(args: unknown) {
-    const { prompts, outputDir = ".", config, parallel = false } = BatchGenerateArgsSchema.parse(args);
+    const { prompts, outputDir = ".", model: modelName = "gemini-2.5-flash-image-preview", resolution, config, parallel = false } = BatchGenerateArgsSchema.parse(args);
 
-    const model = this.genAI.getGenerativeModel({ 
-      model: "gemini-2.5-flash-image-preview" 
+    const model = this.genAI.getGenerativeModel({
+      model: modelName
     });
 
-    const generationConfig = config ? {
+    const generationConfig: any = config ? {
       temperature: config.temperature,
       topP: config.topP,
       topK: config.topK,
@@ -794,6 +888,11 @@ class NanaBananaMCPServer {
     } : {
       responseModalities: ["TEXT", "IMAGE"],
     };
+
+    // Add resolution for Pro model
+    if (resolution && modelName === "gemini-3-pro-image-preview") {
+      generationConfig.imageConfig = { imageSize: resolution };
+    }
 
     const results = [];
     
@@ -875,10 +974,10 @@ class NanaBananaMCPServer {
   }
 
   private async handleGenerateVariations(args: unknown) {
-    const { imagePath, imageData, count = 3, variationStrength = "moderate", outputDir = ".", config } = GenerateVariationsArgsSchema.parse(args);
+    const { imagePath, imageData, count = 3, variationStrength = "moderate", outputDir = ".", model: modelName = "gemini-2.5-flash-image-preview", resolution, config } = GenerateVariationsArgsSchema.parse(args);
 
-    const model = this.genAI.getGenerativeModel({ 
-      model: "gemini-2.5-flash-image-preview" 
+    const model = this.genAI.getGenerativeModel({
+      model: modelName
     });
 
     // Prepare base image
@@ -912,7 +1011,7 @@ class NanaBananaMCPServer {
     };
 
     const basePrompt = variationPrompts[variationStrength];
-    const generationConfig = config ? {
+    const generationConfig: any = config ? {
       temperature: config.temperature ?? (variationStrength === "subtle" ? 0.3 : variationStrength === "moderate" ? 0.7 : 1.2),
       topP: config.topP,
       topK: config.topK,
@@ -922,6 +1021,11 @@ class NanaBananaMCPServer {
       temperature: variationStrength === "subtle" ? 0.3 : variationStrength === "moderate" ? 0.7 : 1.2,
       responseModalities: ["TEXT", "IMAGE"],
     };
+
+    // Add resolution for Pro model
+    if (resolution && modelName === "gemini-3-pro-image-preview") {
+      generationConfig.imageConfig = { imageSize: resolution };
+    }
 
     const results = [];
     
@@ -961,17 +1065,17 @@ class NanaBananaMCPServer {
   }
 
   private async handleGenerateWithTemplate(args: unknown) {
-    const { template, customization, outputDir = ".", config } = PromptTemplateArgsSchema.parse(args);
+    const { template, customization, outputDir = ".", model: modelName = "gemini-2.5-flash-image-preview", resolution, config } = PromptTemplateArgsSchema.parse(args);
 
-    const model = this.genAI.getGenerativeModel({ 
-      model: "gemini-2.5-flash-image-preview" 
+    const model = this.genAI.getGenerativeModel({
+      model: modelName
     });
 
     // Combine template with customization
     const templatePrompt = this.promptTemplates[template];
     const fullPrompt = `${templatePrompt}. ${customization}`;
 
-    const generationConfig = config ? {
+    const generationConfig: any = config ? {
       temperature: config.temperature,
       topP: config.topP,
       topK: config.topK,
@@ -980,6 +1084,11 @@ class NanaBananaMCPServer {
     } : {
       responseModalities: ["TEXT", "IMAGE"],
     };
+
+    // Add resolution for Pro model
+    if (resolution && modelName === "gemini-3-pro-image-preview") {
+      generationConfig.imageConfig = { imageSize: resolution };
+    }
 
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: fullPrompt }] }],

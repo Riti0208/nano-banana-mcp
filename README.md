@@ -4,7 +4,7 @@
 [![MCP](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 
-A powerful Model Context Protocol (MCP) server for advanced image generation, editing, and analysis using Google's Gemini 2.5 Flash Image Preview model (aka "nano-banana").
+A powerful Model Context Protocol (MCP) server for advanced image generation, editing, and analysis using Google's Gemini 2.5 Flash Image Preview (aka "nano-banana") and Gemini 3 Pro Image Preview (aka "nano-banana pro") models.
 
 **English** | [日本語](README.ja.md)
 
@@ -21,11 +21,23 @@ A powerful Model Context Protocol (MCP) server for advanced image generation, ed
 - 🔬 **Image Comparison** - Compare and analyze differences between images
 
 ### Advanced Features
+- **Dual Model Support** - Choose between Gemini 2.5 Flash Image Preview or Gemini 3 Pro Image Preview
+- **High Resolution Output** - Generate up to 4K images (4096x4096) with Gemini 3 Pro
 - **Generation Control** - Fine-tune with temperature, topP, topK parameters
 - **Parallel Processing** - Batch operations with optional parallel execution
 - **Smart Templates** - 10+ professional style presets
 - **Flexible Input** - Accept both file paths and base64 encoded images
 - **Auto-save** - Automatically saves generated images with timestamps
+
+### Model Comparison
+
+| Feature | Gemini 2.5 Flash Image | Gemini 3 Pro Image |
+|---------|------------------------|-------------------|
+| Max Resolution | 1K (1024px) | 1K / 2K / 4K |
+| Text Rendering | Good | Excellent |
+| Speed | Fast | Moderate |
+| Quality | High | Premium |
+| Best For | Quick iterations | Final production |
 
 ## 🚀 Quick Start
 
@@ -73,7 +85,7 @@ Add to your Claude Code MCP settings (`claude_code_config.json`):
 
 ## 📖 Usage Examples
 
-### Generate an Image
+### Generate an Image (Standard)
 ```javascript
 generate_image({
   prompt: "A serene mountain landscape at sunset",
@@ -84,11 +96,25 @@ generate_image({
 })
 ```
 
+### Generate a High-Resolution Image (4K with Gemini 3 Pro)
+```javascript
+generate_image({
+  prompt: "Ultra detailed cyberpunk city at night with neon signs",
+  model: "gemini-3-pro-image-preview",
+  resolution: "4K",
+  config: {
+    temperature: 0.9
+  }
+})
+```
+
 ### Edit an Image
 ```javascript
 edit_image({
   prompt: "Add a rainbow in the sky",
   imagePath: "./landscape.jpg",
+  model: "gemini-3-pro-image-preview",
+  resolution: "2K",
   config: {
     temperature: 0.5
   }
