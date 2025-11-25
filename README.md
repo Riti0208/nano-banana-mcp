@@ -34,10 +34,13 @@ A powerful Model Context Protocol (MCP) server for advanced image generation, ed
 | Feature | Gemini 2.5 Flash Image | Gemini 3 Pro Image |
 |---------|------------------------|-------------------|
 | Max Resolution | 1K (1024px) | 1K / 2K / 4K |
+| Aspect Ratios | All supported | All supported |
 | Text Rendering | Good | Excellent |
 | Speed | Fast | Moderate |
 | Quality | High | Premium |
 | Best For | Quick iterations | Final production |
+
+**Supported Aspect Ratios**: `1:1`, `2:3`, `3:2`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, `21:9`
 
 ## 🚀 Quick Start
 
@@ -102,6 +105,7 @@ generate_image({
   prompt: "Ultra detailed cyberpunk city at night with neon signs",
   model: "gemini-3-pro-image-preview",
   resolution: "4K",
+  aspectRatio: "16:9",
   config: {
     temperature: 0.9
   }
@@ -115,6 +119,7 @@ edit_image({
   imagePath: "./landscape.jpg",
   model: "gemini-3-pro-image-preview",
   resolution: "2K",
+  aspectRatio: "4:3",
   config: {
     temperature: 0.5
   }
