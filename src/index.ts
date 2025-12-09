@@ -32,7 +32,7 @@ const GenerationConfigSchema = z.object({
 
 const GenerateImageArgsSchema = z.object({
   prompt: z.string().describe("The text prompt describing the image to generate"),
-  outputDir: z.string().optional().describe("Directory to save the generated image (optional)"),
+  outputDir: z.string().optional().describe("Directory to save the generated image (optional, defaults to ~/Downloads/nano-banana-images)"),
   model: ModelType.describe("Model to use: gemini-2.5-flash-image-preview (default) or gemini-3-pro-image-preview"),
   resolution: ResolutionType.describe("Resolution (only for gemini-3-pro-image-preview): 1K, 2K, or 4K"),
   aspectRatio: AspectRatioType.describe("Aspect ratio for the generated image (e.g., 16:9, 1:1, 4:3)"),
@@ -44,7 +44,7 @@ const EditImageArgsSchema = z.object({
   prompt: z.string().describe("The text prompt describing how to edit the image"),
   imageData: z.string().optional().describe("Base64 encoded image data to edit"),
   imagePath: z.string().optional().describe("Path to the image file to edit"),
-  outputDir: z.string().optional().describe("Directory to save the edited image (optional)"),
+  outputDir: z.string().optional().describe("Directory to save the edited image (optional, defaults to ~/Downloads/nano-banana-images)"),
   model: ModelType.describe("Model to use: gemini-2.5-flash-image-preview (default) or gemini-3-pro-image-preview"),
   resolution: ResolutionType.describe("Resolution (only for gemini-3-pro-image-preview): 1K, 2K, or 4K"),
   aspectRatio: AspectRatioType.describe("Aspect ratio for the generated image (e.g., 16:9, 1:1, 4:3)"),
@@ -193,7 +193,7 @@ class NanaBananaMCPServer {
                 },
                 outputDir: {
                   type: "string",
-                  description: "Directory to save the generated image (optional, defaults to current directory)",
+                  description: "Directory to save the generated image (optional, defaults to ~/Downloads/nano-banana-images)",
                 },
                 model: {
                   type: "string",
@@ -238,7 +238,7 @@ class NanaBananaMCPServer {
                 },
                 outputDir: {
                   type: "string",
-                  description: "Directory to save the edited image (optional, defaults to current directory)",
+                  description: "Directory to save the edited image (optional, defaults to ~/Downloads/nano-banana-images)",
                 },
                 model: {
                   type: "string",
@@ -543,7 +543,12 @@ class NanaBananaMCPServer {
   }
 
   private async handleGenerateImage(args: unknown) {
-    const { prompt, outputDir = ".", model: modelName = "gemini-2.5-flash-image-preview", resolution, aspectRatio, returnBase64 = false, config } = GenerateImageArgsSchema.parse(args);
+    const { prompt, outputDir, model: modelName = "gemini-2.5-flash-image-preview", resolution, aspectRatio, returnBase64 = false, config } = GenerateImageArgsSchema.parse(args);
+
+    // Default to user's Downloads directory if no output directory specified
+    const homeDir = process.env.HOME || process.env.USERPROFILE || ".";
+    const defaultOutputDir = path.join(homeDir, "Downloads", "nano-banana-images");
+    const finalOutputDir = outputDir || defaultOutputDir;
 
     const model = this.genAI.getGenerativeModel({
       model: modelName
@@ -617,10 +622,10 @@ class NanaBananaMCPServer {
     // Create filename with timestamp
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `generated-image-${timestamp}${extension}`;
-    const filepath = path.join(outputDir, filename);
+    const filepath = path.join(finalOutputDir, filename);
 
     // Save the image
-    await fs.mkdir(outputDir, { recursive: true });
+    await fs.mkdir(finalOutputDir, { recursive: true });
     await fs.writeFile(filepath, Buffer.from(imageData, 'base64'));
 
     return {
@@ -634,7 +639,12 @@ class NanaBananaMCPServer {
   }
 
   private async handleEditImage(args: unknown) {
-    const { prompt, imageData, imagePath, outputDir = ".", model: modelName = "gemini-2.5-flash-image-preview", resolution, aspectRatio, returnBase64 = false, config } = EditImageArgsSchema.parse(args);
+    const { prompt, imageData, imagePath, outputDir, model: modelName = "gemini-2.5-flash-image-preview", resolution, aspectRatio, returnBase64 = false, config } = EditImageArgsSchema.parse(args);
+
+    // Default to user's Downloads directory if no output directory specified
+    const homeDir = process.env.HOME || process.env.USERPROFILE || ".";
+    const defaultOutputDir = path.join(homeDir, "Downloads", "nano-banana-images");
+    const finalOutputDir = outputDir || defaultOutputDir;
 
     const model = this.genAI.getGenerativeModel({
       model: modelName
@@ -750,10 +760,10 @@ class NanaBananaMCPServer {
     // Create filename with timestamp
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `edited-image-${timestamp}${extension}`;
-    const filepath = path.join(outputDir, filename);
+    const filepath = path.join(finalOutputDir, filename);
 
     // Save the edited image
-    await fs.mkdir(outputDir, { recursive: true });
+    await fs.mkdir(finalOutputDir, { recursive: true });
     await fs.writeFile(filepath, Buffer.from(outputImageData, 'base64'));
 
     return {
