@@ -36,6 +36,7 @@ const GenerateImageArgsSchema = z.object({
   model: ModelType.describe("Model to use: gemini-2.5-flash-image-preview (default) or gemini-3-pro-image-preview"),
   resolution: ResolutionType.describe("Resolution (only for gemini-3-pro-image-preview): 1K, 2K, or 4K"),
   aspectRatio: AspectRatioType.describe("Aspect ratio for the generated image (e.g., 16:9, 1:1, 4:3)"),
+  returnBase64: z.boolean().optional().describe("Return the image as base64 data instead of saving to file (useful for Claude Desktop)"),
   config: GenerationConfigSchema.optional().describe("Advanced generation configuration"),
 });
 
@@ -47,6 +48,7 @@ const EditImageArgsSchema = z.object({
   model: ModelType.describe("Model to use: gemini-2.5-flash-image-preview (default) or gemini-3-pro-image-preview"),
   resolution: ResolutionType.describe("Resolution (only for gemini-3-pro-image-preview): 1K, 2K, or 4K"),
   aspectRatio: AspectRatioType.describe("Aspect ratio for the generated image (e.g., 16:9, 1:1, 4:3)"),
+  returnBase64: z.boolean().optional().describe("Return the image as base64 data instead of saving to file (useful for Claude Desktop)"),
   config: GenerationConfigSchema.optional().describe("Advanced generation configuration"),
 }).refine(data => data.imageData || data.imagePath, {
   message: "Either imageData or imagePath must be provided",
@@ -72,6 +74,7 @@ const MultiImageEditArgsSchema = z.object({
   model: ModelType.describe("Model to use: gemini-2.5-flash-image-preview (default) or gemini-3-pro-image-preview"),
   resolution: ResolutionType.describe("Resolution (only for gemini-3-pro-image-preview): 1K, 2K, or 4K"),
   aspectRatio: AspectRatioType.describe("Aspect ratio for the generated image (e.g., 16:9, 1:1, 4:3)"),
+  returnBase64: z.boolean().optional().describe("Return the image as base64 data instead of saving to file (useful for Claude Desktop)"),
   config: GenerationConfigSchema.optional().describe("Advanced generation configuration"),
 }).refine(data => data.images.every(img => img.imageData || img.imagePath), {
   message: "Each image must have either imageData or imagePath",
@@ -105,6 +108,7 @@ const GenerateVariationsArgsSchema = z.object({
   model: ModelType.describe("Model to use: gemini-2.5-flash-image-preview (default) or gemini-3-pro-image-preview"),
   resolution: ResolutionType.describe("Resolution (only for gemini-3-pro-image-preview): 1K, 2K, or 4K"),
   aspectRatio: AspectRatioType.describe("Aspect ratio for the generated variations (e.g., 16:9, 1:1, 4:3)"),
+  returnBase64: z.boolean().optional().describe("Return images as base64 data instead of saving to file (useful for Claude Desktop)"),
   config: GenerationConfigSchema.optional().describe("Advanced generation configuration"),
 }).refine(data => data.imageData || data.imagePath, {
   message: "Either imageData or imagePath must be provided",
@@ -129,6 +133,7 @@ const PromptTemplateArgsSchema = z.object({
   model: ModelType.describe("Model to use: gemini-2.5-flash-image-preview (default) or gemini-3-pro-image-preview"),
   resolution: ResolutionType.describe("Resolution (only for gemini-3-pro-image-preview): 1K, 2K, or 4K"),
   aspectRatio: AspectRatioType.describe("Aspect ratio for the generated image (e.g., 16:9, 1:1, 4:3)"),
+  returnBase64: z.boolean().optional().describe("Return the image as base64 data instead of saving to file (useful for Claude Desktop)"),
   config: GenerationConfigSchema.optional().describe("Advanced generation configuration"),
 });
 
@@ -204,6 +209,10 @@ class NanaBananaMCPServer {
                   type: "string",
                   enum: ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
                   description: "Aspect ratio for the generated image (optional)",
+                },
+                returnBase64: {
+                  type: "boolean",
+                  description: "Return the image as base64 data URL instead of saving to file (useful for Claude Desktop)",
                 },
               },
               required: ["prompt"],
@@ -534,7 +543,7 @@ class NanaBananaMCPServer {
   }
 
   private async handleGenerateImage(args: unknown) {
-    const { prompt, outputDir = ".", model: modelName = "gemini-2.5-flash-image-preview", resolution, aspectRatio, config } = GenerateImageArgsSchema.parse(args);
+    const { prompt, outputDir = ".", model: modelName = "gemini-2.5-flash-image-preview", resolution, aspectRatio, returnBase64 = false, config } = GenerateImageArgsSchema.parse(args);
 
     const model = this.genAI.getGenerativeModel({
       model: modelName
@@ -585,10 +594,24 @@ class NanaBananaMCPServer {
 
     const imageData = imagePart.inlineData!.data;
     const mimeType = imagePart.inlineData!.mimeType;
-    
+
+    // If returnBase64 is true, return image as base64 data URL
+    if (returnBase64) {
+      return {
+        content: [
+          {
+            type: "image",
+            data: imageData,
+            mimeType: mimeType,
+          },
+        ],
+      };
+    }
+
+    // Otherwise, save to file
     // Determine file extension from MIME type
-    const extension = mimeType === 'image/png' ? '.png' : 
-                     mimeType === 'image/jpeg' ? '.jpg' : 
+    const extension = mimeType === 'image/png' ? '.png' :
+                     mimeType === 'image/jpeg' ? '.jpg' :
                      '.png'; // default to PNG
 
     // Create filename with timestamp
@@ -611,7 +634,7 @@ class NanaBananaMCPServer {
   }
 
   private async handleEditImage(args: unknown) {
-    const { prompt, imageData, imagePath, outputDir = ".", model: modelName = "gemini-2.5-flash-image-preview", resolution, aspectRatio, config } = EditImageArgsSchema.parse(args);
+    const { prompt, imageData, imagePath, outputDir = ".", model: modelName = "gemini-2.5-flash-image-preview", resolution, aspectRatio, returnBase64 = false, config } = EditImageArgsSchema.parse(args);
 
     const model = this.genAI.getGenerativeModel({
       model: modelName
@@ -704,10 +727,24 @@ class NanaBananaMCPServer {
 
     const outputImageData = outputImagePart.inlineData!.data;
     const outputMimeType = outputImagePart.inlineData!.mimeType;
-    
+
+    // If returnBase64 is true, return image as base64 data URL
+    if (returnBase64) {
+      return {
+        content: [
+          {
+            type: "image",
+            data: outputImageData,
+            mimeType: outputMimeType,
+          },
+        ],
+      };
+    }
+
+    // Otherwise, save to file
     // Determine file extension from MIME type
-    const extension = outputMimeType === 'image/png' ? '.png' : 
-                     outputMimeType === 'image/jpeg' ? '.jpg' : 
+    const extension = outputMimeType === 'image/png' ? '.png' :
+                     outputMimeType === 'image/jpeg' ? '.jpg' :
                      '.png'; // default to PNG
 
     // Create filename with timestamp
