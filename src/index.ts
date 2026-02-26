@@ -13,14 +13,15 @@ import * as fs from "fs/promises";
 import * as path from "path";
 
 // Model selection enum
-const ModelType = z.enum(["gemini-2.5-flash-image-preview", "gemini-3-pro-image-preview"]).default("gemini-2.5-flash-image-preview");
+const ModelType = z.enum(["gemini-3.1-flash-image-preview", "gemini-3-pro-image-preview"]).default("gemini-3.1-flash-image-preview");
 
-// Resolution options (only for gemini-3-pro-image-preview)
-// Note: Must use uppercase K (1K, 2K, 4K) as per Gemini API requirements
-const ResolutionType = z.enum(["1K", "2K", "4K"]).optional();
+// Resolution options
+// Note: Must use uppercase K (0.5K, 1K, 2K, 4K) as per Gemini API requirements
+// 0.5K (512px) is only supported by gemini-3.1-flash-image-preview
+const ResolutionType = z.enum(["0.5K", "1K", "2K", "4K"]).default("1K");
 
-// Aspect ratio options (supported by both models)
-const AspectRatioType = z.enum(["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"]).optional();
+// Aspect ratio options
+const AspectRatioType = z.enum(["1:1", "1:4", "1:8", "2:3", "3:2", "3:4", "4:1", "4:3", "4:5", "5:4", "8:1", "9:16", "16:9", "21:9"]).optional();
 
 // Common generation config schema
 const GenerationConfigSchema = z.object({
@@ -33,8 +34,8 @@ const GenerationConfigSchema = z.object({
 const GenerateImageArgsSchema = z.object({
   prompt: z.string().describe("The text prompt describing the image to generate"),
   outputDir: z.string().optional().describe("Directory to save the generated image (optional, defaults to ~/Downloads/nano-banana-images)"),
-  model: ModelType.describe("Model to use: gemini-2.5-flash-image-preview (default) or gemini-3-pro-image-preview"),
-  resolution: ResolutionType.describe("Resolution (only for gemini-3-pro-image-preview): 1K, 2K, or 4K"),
+  model: ModelType.describe("Model to use: gemini-3.1-flash-image-preview (Nano Banana 2, recommended) or gemini-3-pro-image-preview (Nano Banana Pro)"),
+  resolution: ResolutionType.describe("Output resolution: 0.5K (512px, 3.1 Flash only), 1K (default), 2K, or 4K"),
   aspectRatio: AspectRatioType.describe("Aspect ratio for the generated image (e.g., 16:9, 1:1, 4:3)"),
   returnBase64: z.boolean().optional().describe("Return the image as base64 data instead of saving to file (useful for Claude Desktop)"),
   config: GenerationConfigSchema.optional().describe("Advanced generation configuration"),
@@ -45,8 +46,8 @@ const EditImageArgsSchema = z.object({
   imageData: z.string().optional().describe("Base64 encoded image data to edit"),
   imagePath: z.string().optional().describe("Path to the image file to edit"),
   outputDir: z.string().optional().describe("Directory to save the edited image (optional, defaults to ~/Downloads/nano-banana-images)"),
-  model: ModelType.describe("Model to use: gemini-2.5-flash-image-preview (default) or gemini-3-pro-image-preview"),
-  resolution: ResolutionType.describe("Resolution (only for gemini-3-pro-image-preview): 1K, 2K, or 4K"),
+  model: ModelType.describe("Model to use: gemini-3.1-flash-image-preview (Nano Banana 2, recommended) or gemini-3-pro-image-preview (Nano Banana Pro)"),
+  resolution: ResolutionType.describe("Output resolution: 0.5K (512px, 3.1 Flash only), 1K (default), 2K, or 4K"),
   aspectRatio: AspectRatioType.describe("Aspect ratio for the generated image (e.g., 16:9, 1:1, 4:3)"),
   returnBase64: z.boolean().optional().describe("Return the image as base64 data instead of saving to file (useful for Claude Desktop)"),
   config: GenerationConfigSchema.optional().describe("Advanced generation configuration"),
@@ -71,8 +72,8 @@ const MultiImageEditArgsSchema = z.object({
     description: z.string().optional().describe("Optional description of this image's role"),
   })).min(1).describe("Array of images to process"),
   outputDir: z.string().optional().describe("Directory to save the result (optional)"),
-  model: ModelType.describe("Model to use: gemini-2.5-flash-image-preview (default) or gemini-3-pro-image-preview"),
-  resolution: ResolutionType.describe("Resolution (only for gemini-3-pro-image-preview): 1K, 2K, or 4K"),
+  model: ModelType.describe("Model to use: gemini-3.1-flash-image-preview (Nano Banana 2, recommended) or gemini-3-pro-image-preview (Nano Banana Pro)"),
+  resolution: ResolutionType.describe("Output resolution: 0.5K (512px, 3.1 Flash only), 1K (default), 2K, or 4K"),
   aspectRatio: AspectRatioType.describe("Aspect ratio for the generated image (e.g., 16:9, 1:1, 4:3)"),
   returnBase64: z.boolean().optional().describe("Return the image as base64 data instead of saving to file (useful for Claude Desktop)"),
   config: GenerationConfigSchema.optional().describe("Advanced generation configuration"),
@@ -84,8 +85,8 @@ const MultiImageEditArgsSchema = z.object({
 const BatchGenerateArgsSchema = z.object({
   prompts: z.array(z.string()).min(1).describe("Array of prompts to generate images for"),
   outputDir: z.string().optional().describe("Directory to save the generated images"),
-  model: ModelType.describe("Model to use: gemini-2.5-flash-image-preview (default) or gemini-3-pro-image-preview"),
-  resolution: ResolutionType.describe("Resolution (only for gemini-3-pro-image-preview): 1K, 2K, or 4K"),
+  model: ModelType.describe("Model to use: gemini-3.1-flash-image-preview (Nano Banana 2, recommended) or gemini-3-pro-image-preview (Nano Banana Pro)"),
+  resolution: ResolutionType.describe("Output resolution: 0.5K (512px, 3.1 Flash only), 1K (default), 2K, or 4K"),
   aspectRatio: AspectRatioType.describe("Aspect ratio for the generated images (e.g., 16:9, 1:1, 4:3)"),
   config: GenerationConfigSchema.optional().describe("Advanced generation configuration"),
   parallel: z.boolean().optional().describe("Process prompts in parallel (default: false)"),
@@ -105,8 +106,8 @@ const GenerateVariationsArgsSchema = z.object({
   count: z.number().min(1).max(5).default(3).describe("Number of variations to generate (1-5)"),
   variationStrength: z.enum(["subtle", "moderate", "strong"]).default("moderate").describe("How different the variations should be"),
   outputDir: z.string().optional().describe("Directory to save the variations"),
-  model: ModelType.describe("Model to use: gemini-2.5-flash-image-preview (default) or gemini-3-pro-image-preview"),
-  resolution: ResolutionType.describe("Resolution (only for gemini-3-pro-image-preview): 1K, 2K, or 4K"),
+  model: ModelType.describe("Model to use: gemini-3.1-flash-image-preview (Nano Banana 2, recommended) or gemini-3-pro-image-preview (Nano Banana Pro)"),
+  resolution: ResolutionType.describe("Output resolution: 0.5K (512px, 3.1 Flash only), 1K (default), 2K, or 4K"),
   aspectRatio: AspectRatioType.describe("Aspect ratio for the generated variations (e.g., 16:9, 1:1, 4:3)"),
   returnBase64: z.boolean().optional().describe("Return images as base64 data instead of saving to file (useful for Claude Desktop)"),
   config: GenerationConfigSchema.optional().describe("Advanced generation configuration"),
@@ -130,8 +131,8 @@ const PromptTemplateArgsSchema = z.object({
   ]).describe("Pre-defined prompt template"),
   customization: z.string().describe("Your specific requirements to customize the template"),
   outputDir: z.string().optional().describe("Directory to save the generated image"),
-  model: ModelType.describe("Model to use: gemini-2.5-flash-image-preview (default) or gemini-3-pro-image-preview"),
-  resolution: ResolutionType.describe("Resolution (only for gemini-3-pro-image-preview): 1K, 2K, or 4K"),
+  model: ModelType.describe("Model to use: gemini-3.1-flash-image-preview (Nano Banana 2, recommended) or gemini-3-pro-image-preview (Nano Banana Pro)"),
+  resolution: ResolutionType.describe("Output resolution: 0.5K (512px, 3.1 Flash only), 1K (default), 2K, or 4K"),
   aspectRatio: AspectRatioType.describe("Aspect ratio for the generated image (e.g., 16:9, 1:1, 4:3)"),
   returnBase64: z.boolean().optional().describe("Return the image as base64 data instead of saving to file (useful for Claude Desktop)"),
   config: GenerationConfigSchema.optional().describe("Advanced generation configuration"),
@@ -183,7 +184,7 @@ class NanaBananaMCPServer {
         tools: [
           {
             name: "generate_image",
-            description: "Generate an image using Gemini 2.5 Flash Image Preview or Gemini 3 Pro Image Preview (nano-banana pro)",
+            description: "Generate an image using Gemini image models (Nano Banana 2 or Nano Banana Pro)",
             inputSchema: {
               type: "object",
               properties: {
@@ -197,17 +198,17 @@ class NanaBananaMCPServer {
                 },
                 model: {
                   type: "string",
-                  enum: ["gemini-2.5-flash-image-preview", "gemini-3-pro-image-preview"],
-                  description: "Model to use (default: gemini-2.5-flash-image-preview). Use gemini-3-pro-image-preview for higher quality and resolution",
+                  enum: ["gemini-3.1-flash-image-preview", "gemini-3-pro-image-preview"],
+                  description: "Model to use: gemini-3.1-flash-image-preview (Nano Banana 2, recommended) or gemini-3-pro-image-preview (Nano Banana Pro)",
                 },
                 resolution: {
                   type: "string",
-                  enum: ["1K", "2K", "4K"],
-                  description: "Output resolution (only for gemini-3-pro-image-preview): 1K (default), 2K, or 4K",
+                  enum: ["0.5K", "1K", "2K", "4K"],
+                  description: "Output resolution: 0.5K (512px, 3.1 Flash only), 1K (default), 2K, or 4K",
                 },
                 aspectRatio: {
                   type: "string",
-                  enum: ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
+                  enum: ["1:1", "1:4", "1:8", "2:3", "3:2", "3:4", "4:1", "4:3", "4:5", "5:4", "8:1", "9:16", "16:9", "21:9"],
                   description: "Aspect ratio for the generated image (optional)",
                 },
                 returnBase64: {
@@ -220,7 +221,7 @@ class NanaBananaMCPServer {
           },
           {
             name: "edit_image",
-            description: "Edit an existing image using Gemini 2.5 Flash Image Preview or Gemini 3 Pro Image Preview",
+            description: "Edit an existing image using Gemini image models (Nano Banana 2 or Nano Banana Pro)",
             inputSchema: {
               type: "object",
               properties: {
@@ -242,17 +243,17 @@ class NanaBananaMCPServer {
                 },
                 model: {
                   type: "string",
-                  enum: ["gemini-2.5-flash-image-preview", "gemini-3-pro-image-preview"],
-                  description: "Model to use (default: gemini-2.5-flash-image-preview)",
+                  enum: ["gemini-3.1-flash-image-preview", "gemini-3-pro-image-preview"],
+                  description: "Model to use: gemini-3.1-flash-image-preview (Nano Banana 2, recommended) or gemini-3-pro-image-preview (Nano Banana Pro)",
                 },
                 resolution: {
                   type: "string",
-                  enum: ["1K", "2K", "4K"],
-                  description: "Output resolution (only for gemini-3-pro-image-preview)",
+                  enum: ["0.5K", "1K", "2K", "4K"],
+                  description: "Output resolution: 0.5K (512px, 3.1 Flash only), 1K (default), 2K, or 4K",
                 },
                 aspectRatio: {
                   type: "string",
-                  enum: ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
+                  enum: ["1:1", "1:4", "1:8", "2:3", "3:2", "3:4", "4:1", "4:3", "4:5", "5:4", "8:1", "9:16", "16:9", "21:9"],
                   description: "Aspect ratio for the generated image (optional)",
                 },
               },
@@ -283,7 +284,7 @@ class NanaBananaMCPServer {
           },
           {
             name: "multi_image_edit",
-            description: "Edit or combine multiple images using Gemini 2.5 Flash Image Preview or Gemini 3 Pro Image Preview (e.g., transfer pose, style, combine elements)",
+            description: "Edit or combine multiple images using Gemini image models (e.g., transfer pose, style, combine elements)",
             inputSchema: {
               type: "object",
               properties: {
@@ -319,17 +320,17 @@ class NanaBananaMCPServer {
                 },
                 model: {
                   type: "string",
-                  enum: ["gemini-2.5-flash-image-preview", "gemini-3-pro-image-preview"],
-                  description: "Model to use (default: gemini-2.5-flash-image-preview)",
+                  enum: ["gemini-3.1-flash-image-preview", "gemini-3-pro-image-preview"],
+                  description: "Model to use: gemini-3.1-flash-image-preview (Nano Banana 2, recommended) or gemini-3-pro-image-preview (Nano Banana Pro)",
                 },
                 resolution: {
                   type: "string",
-                  enum: ["1K", "2K", "4K"],
-                  description: "Output resolution (only for gemini-3-pro-image-preview)",
+                  enum: ["0.5K", "1K", "2K", "4K"],
+                  description: "Output resolution: 0.5K (512px, 3.1 Flash only), 1K (default), 2K, or 4K",
                 },
                 aspectRatio: {
                   type: "string",
-                  enum: ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
+                  enum: ["1:1", "1:4", "1:8", "2:3", "3:2", "3:4", "4:1", "4:3", "4:5", "5:4", "8:1", "9:16", "16:9", "21:9"],
                   description: "Aspect ratio for the generated image (optional)",
                 },
               },
@@ -354,17 +355,17 @@ class NanaBananaMCPServer {
                 },
                 model: {
                   type: "string",
-                  enum: ["gemini-2.5-flash-image-preview", "gemini-3-pro-image-preview"],
-                  description: "Model to use (default: gemini-2.5-flash-image-preview)",
+                  enum: ["gemini-3.1-flash-image-preview", "gemini-3-pro-image-preview"],
+                  description: "Model to use: gemini-3.1-flash-image-preview (Nano Banana 2, recommended) or gemini-3-pro-image-preview (Nano Banana Pro)",
                 },
                 resolution: {
                   type: "string",
-                  enum: ["1K", "2K", "4K"],
-                  description: "Output resolution (only for gemini-3-pro-image-preview)",
+                  enum: ["0.5K", "1K", "2K", "4K"],
+                  description: "Output resolution: 0.5K (512px, 3.1 Flash only), 1K (default), 2K, or 4K",
                 },
                 aspectRatio: {
                   type: "string",
-                  enum: ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
+                  enum: ["1:1", "1:4", "1:8", "2:3", "3:2", "3:4", "4:1", "4:3", "4:5", "5:4", "8:1", "9:16", "16:9", "21:9"],
                   description: "Aspect ratio for the generated images (optional)",
                 },
                 config: {
@@ -412,17 +413,17 @@ class NanaBananaMCPServer {
                 },
                 model: {
                   type: "string",
-                  enum: ["gemini-2.5-flash-image-preview", "gemini-3-pro-image-preview"],
-                  description: "Model to use (default: gemini-2.5-flash-image-preview)",
+                  enum: ["gemini-3.1-flash-image-preview", "gemini-3-pro-image-preview"],
+                  description: "Model to use: gemini-3.1-flash-image-preview (Nano Banana 2, recommended) or gemini-3-pro-image-preview (Nano Banana Pro)",
                 },
                 resolution: {
                   type: "string",
-                  enum: ["1K", "2K", "4K"],
-                  description: "Output resolution (only for gemini-3-pro-image-preview)",
+                  enum: ["0.5K", "1K", "2K", "4K"],
+                  description: "Output resolution: 0.5K (512px, 3.1 Flash only), 1K (default), 2K, or 4K",
                 },
                 aspectRatio: {
                   type: "string",
-                  enum: ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
+                  enum: ["1:1", "1:4", "1:8", "2:3", "3:2", "3:4", "4:1", "4:3", "4:5", "5:4", "8:1", "9:16", "16:9", "21:9"],
                   description: "Aspect ratio for the generated variations (optional)",
                 },
                 config: {
@@ -454,17 +455,17 @@ class NanaBananaMCPServer {
                 },
                 model: {
                   type: "string",
-                  enum: ["gemini-2.5-flash-image-preview", "gemini-3-pro-image-preview"],
-                  description: "Model to use (default: gemini-2.5-flash-image-preview)",
+                  enum: ["gemini-3.1-flash-image-preview", "gemini-3-pro-image-preview"],
+                  description: "Model to use: gemini-3.1-flash-image-preview (Nano Banana 2, recommended) or gemini-3-pro-image-preview (Nano Banana Pro)",
                 },
                 resolution: {
                   type: "string",
-                  enum: ["1K", "2K", "4K"],
-                  description: "Output resolution (only for gemini-3-pro-image-preview)",
+                  enum: ["0.5K", "1K", "2K", "4K"],
+                  description: "Output resolution: 0.5K (512px, 3.1 Flash only), 1K (default), 2K, or 4K",
                 },
                 aspectRatio: {
                   type: "string",
-                  enum: ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
+                  enum: ["1:1", "1:4", "1:8", "2:3", "3:2", "3:4", "4:1", "4:3", "4:5", "5:4", "8:1", "9:16", "16:9", "21:9"],
                   description: "Aspect ratio for the generated image (optional)",
                 },
                 config: {
@@ -543,7 +544,7 @@ class NanaBananaMCPServer {
   }
 
   private async handleGenerateImage(args: unknown) {
-    const { prompt, outputDir, model: modelName = "gemini-2.5-flash-image-preview", resolution, aspectRatio, returnBase64 = false, config } = GenerateImageArgsSchema.parse(args);
+    const { prompt, outputDir, model: modelName = "gemini-3.1-flash-image-preview", resolution, aspectRatio, returnBase64 = false, config } = GenerateImageArgsSchema.parse(args);
 
     // Default to user's Downloads directory if no output directory specified
     const homeDir = process.env.HOME || process.env.USERPROFILE || ".";
@@ -568,7 +569,7 @@ class NanaBananaMCPServer {
     // Add imageConfig for resolution and/or aspectRatio
     if (resolution || aspectRatio) {
       generationConfig.imageConfig = {};
-      if (resolution && modelName === "gemini-3-pro-image-preview") {
+      if (resolution) {
         generationConfig.imageConfig.imageSize = resolution;
       }
       if (aspectRatio) {
@@ -639,7 +640,7 @@ class NanaBananaMCPServer {
   }
 
   private async handleEditImage(args: unknown) {
-    const { prompt, imageData, imagePath, outputDir, model: modelName = "gemini-2.5-flash-image-preview", resolution, aspectRatio, returnBase64 = false, config } = EditImageArgsSchema.parse(args);
+    const { prompt, imageData, imagePath, outputDir, model: modelName = "gemini-3.1-flash-image-preview", resolution, aspectRatio, returnBase64 = false, config } = EditImageArgsSchema.parse(args);
 
     // Default to user's Downloads directory if no output directory specified
     const homeDir = process.env.HOME || process.env.USERPROFILE || ".";
@@ -706,7 +707,7 @@ class NanaBananaMCPServer {
     // Add imageConfig for resolution and/or aspectRatio
     if (resolution || aspectRatio) {
       generationConfig.imageConfig = {};
-      if (resolution && modelName === "gemini-3-pro-image-preview") {
+      if (resolution) {
         generationConfig.imageConfig.imageSize = resolution;
       }
       if (aspectRatio) {
@@ -853,7 +854,7 @@ class NanaBananaMCPServer {
   }
 
   private async handleMultiImageEdit(args: unknown) {
-    const { prompt, images, outputDir = ".", model: modelName = "gemini-2.5-flash-image-preview", resolution, aspectRatio, config } = MultiImageEditArgsSchema.parse(args);
+    const { prompt, images, outputDir = ".", model: modelName = "gemini-3.1-flash-image-preview", resolution, aspectRatio, config } = MultiImageEditArgsSchema.parse(args);
 
     const model = this.genAI.getGenerativeModel({
       model: modelName
@@ -919,7 +920,7 @@ class NanaBananaMCPServer {
     // Add imageConfig for resolution and/or aspectRatio
     if (resolution || aspectRatio) {
       generationConfig.imageConfig = {};
-      if (resolution && modelName === "gemini-3-pro-image-preview") {
+      if (resolution) {
         generationConfig.imageConfig.imageSize = resolution;
       }
       if (aspectRatio) {
@@ -977,7 +978,7 @@ class NanaBananaMCPServer {
   }
 
   private async handleBatchGenerate(args: unknown) {
-    const { prompts, outputDir = ".", model: modelName = "gemini-2.5-flash-image-preview", resolution, aspectRatio, config, parallel = false } = BatchGenerateArgsSchema.parse(args);
+    const { prompts, outputDir = ".", model: modelName = "gemini-3.1-flash-image-preview", resolution, aspectRatio, config, parallel = false } = BatchGenerateArgsSchema.parse(args);
 
     const model = this.genAI.getGenerativeModel({
       model: modelName
@@ -996,7 +997,7 @@ class NanaBananaMCPServer {
     // Add imageConfig for resolution and/or aspectRatio
     if (resolution || aspectRatio) {
       generationConfig.imageConfig = {};
-      if (resolution && modelName === "gemini-3-pro-image-preview") {
+      if (resolution) {
         generationConfig.imageConfig.imageSize = resolution;
       }
       if (aspectRatio) {
@@ -1084,7 +1085,7 @@ class NanaBananaMCPServer {
   }
 
   private async handleGenerateVariations(args: unknown) {
-    const { imagePath, imageData, count = 3, variationStrength = "moderate", outputDir = ".", model: modelName = "gemini-2.5-flash-image-preview", resolution, aspectRatio, config } = GenerateVariationsArgsSchema.parse(args);
+    const { imagePath, imageData, count = 3, variationStrength = "moderate", outputDir = ".", model: modelName = "gemini-3.1-flash-image-preview", resolution, aspectRatio, config } = GenerateVariationsArgsSchema.parse(args);
 
     const model = this.genAI.getGenerativeModel({
       model: modelName
@@ -1135,7 +1136,7 @@ class NanaBananaMCPServer {
     // Add imageConfig for resolution and/or aspectRatio
     if (resolution || aspectRatio) {
       generationConfig.imageConfig = {};
-      if (resolution && modelName === "gemini-3-pro-image-preview") {
+      if (resolution) {
         generationConfig.imageConfig.imageSize = resolution;
       }
       if (aspectRatio) {
@@ -1181,7 +1182,7 @@ class NanaBananaMCPServer {
   }
 
   private async handleGenerateWithTemplate(args: unknown) {
-    const { template, customization, outputDir = ".", model: modelName = "gemini-2.5-flash-image-preview", resolution, aspectRatio, config } = PromptTemplateArgsSchema.parse(args);
+    const { template, customization, outputDir = ".", model: modelName = "gemini-3.1-flash-image-preview", resolution, aspectRatio, config } = PromptTemplateArgsSchema.parse(args);
 
     const model = this.genAI.getGenerativeModel({
       model: modelName
@@ -1204,7 +1205,7 @@ class NanaBananaMCPServer {
     // Add imageConfig for resolution and/or aspectRatio
     if (resolution || aspectRatio) {
       generationConfig.imageConfig = {};
-      if (resolution && modelName === "gemini-3-pro-image-preview") {
+      if (resolution) {
         generationConfig.imageConfig.imageSize = resolution;
       }
       if (aspectRatio) {
